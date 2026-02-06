@@ -9,7 +9,8 @@
 
   browser.storage.onChanged.addListener(async (changes, area) => {
     if (area === 'local' && changes.settings) {
-      config = { ...DEFAULT_SETTINGS, ...changes.settings.newValue };
+      const nextConfig = { ...DEFAULT_SETTINGS, ...changes.settings.newValue };
+      applyConfig(nextConfig);
     }
   });
 
@@ -41,6 +42,11 @@
   const CUSTOM_SENTENCE_TAG = 'span';
   const CUSTOM_SENTENCE_ATTR = 'data-qs';
   const CUSTOM_SENTENCE_ATTR_VALUE = 'sentence';
+  const CUSTOM_WORD_TAG = 'span';
+  const CUSTOM_WORD_ATTR = 'data-qs';
+  const CUSTOM_WORD_ATTR_VALUE = 'word';
+  const SENTENCE_SELECTOR = `${CUSTOM_SENTENCE_TAG}[${CUSTOM_SENTENCE_ATTR}="${CUSTOM_SENTENCE_ATTR_VALUE}"]`;
+  const WORD_SELECTOR = `${CUSTOM_WORD_TAG}[${CUSTOM_WORD_ATTR}="${CUSTOM_WORD_ATTR_VALUE}"]`;
   const BLOCK_SELECTOR = 'p, div, li, td, th, h1, h2, h3, h4, h5, h6, blockquote, dd, dt';
   const SKIP_TAGS = new Set([
     'SCRIPT',
@@ -59,7 +65,9 @@
   ]);
 
   let sentenceSegmenter = null;
+  let wordSegmenter = null;
   let sentenceIdCounter = 0;
+  let wordIdCounter = 0;
   let selectionAnchor = null;
   let lastPointerUpTs = 0;
   let pendingOutsideTap = false;
@@ -75,6 +83,18 @@
   const getLaterNode = (a, b) => (isNodeBefore(a, b) ? b : a);
   const isNodeInDocument = (node) => Boolean(node && document.contains(node));
 
+  const getActiveSegmentSelector = () => {
+    if (config?.configGranularity === 'sentence') return SENTENCE_SELECTOR;
+    if (config?.configGranularity === 'word') return WORD_SELECTOR;
+    return null;
+  };
+
+  const isActiveSegmentTarget = (target) => {
+    const selector = getActiveSegmentSelector();
+    if (!selector) return false;
+    return Boolean(target?.closest?.(selector));
+  };
+
   const initSentenceSegmenter = () => {
     if (sentenceSegmenter) return sentenceSegmenter;
     if (!Intl?.Segmenter) {
@@ -86,11 +106,23 @@
     return sentenceSegmenter;
   };
 
+  const initWordSegmenter = () => {
+    if (wordSegmenter) return wordSegmenter;
+    if (!Intl?.Segmenter) {
+      console.warn('[QuickSelectExtension] Intl.Segmenter is not supported in this browser.');
+      return null;
+    }
+    const lang = document.documentElement.lang || navigator.language || 'en';
+    wordSegmenter = new Intl.Segmenter(lang, { granularity: 'word' });
+    return wordSegmenter;
+  };
+
   const isSkippableNode = (node) => {
     if (!node?.parentElement) return true;
     const parent = node.parentElement;
     if (parent.isContentEditable) return true;
-    if (parent.closest(`${CUSTOM_SENTENCE_TAG}[${CUSTOM_SENTENCE_ATTR}="${CUSTOM_SENTENCE_ATTR_VALUE}"]`)) return true;
+    if (parent.closest(SENTENCE_SELECTOR)) return true;
+    if (parent.closest(WORD_SELECTOR)) return true;
     if (SKIP_TAGS.has(parent.tagName)) return true;
     return false;
   };
@@ -173,7 +205,10 @@
             if (node.tagName === 'BR') return NodeFilter.FILTER_ACCEPT;
             if (node.isContentEditable) return NodeFilter.FILTER_REJECT;
             if (SKIP_TAGS.has(node.tagName)) return NodeFilter.FILTER_REJECT;
-            if (node.closest(`${CUSTOM_SENTENCE_TAG}[${CUSTOM_SENTENCE_ATTR}="${CUSTOM_SENTENCE_ATTR_VALUE}"]`)) {
+            if (node.closest(SENTENCE_SELECTOR)) {
+              return NodeFilter.FILTER_REJECT;
+            }
+            if (node.closest(WORD_SELECTOR)) {
               return NodeFilter.FILTER_REJECT;
             }
             return NodeFilter.FILTER_SKIP;
@@ -302,7 +337,7 @@
     const blockElements = root.querySelectorAll(BLOCK_SELECTOR);
     
     blockElements.forEach(element => {
-      if (!element.closest(`${CUSTOM_SENTENCE_TAG}[${CUSTOM_SENTENCE_ATTR}="${CUSTOM_SENTENCE_ATTR_VALUE}"]`)) {
+      if (!element.closest(SENTENCE_SELECTOR)) {
         wrapSentencesInParent(element);
       }
     });
@@ -315,14 +350,14 @@
   };
 
   const unwrapSentenceTags = () => {
-    const sentenceTags = document.querySelectorAll(`${CUSTOM_SENTENCE_TAG}[${CUSTOM_SENTENCE_ATTR}="${CUSTOM_SENTENCE_ATTR_VALUE}"]`);
+    const sentenceTags = document.querySelectorAll(SENTENCE_SELECTOR);
     sentenceTags.forEach(tag => {
       tag.replaceWith(document.createTextNode(tag.textContent || ''));
     });
   };
 
   const handleSentenceClick = (event) => {
-    const target = event.target?.closest?.(`${CUSTOM_SENTENCE_TAG}[${CUSTOM_SENTENCE_ATTR}="${CUSTOM_SENTENCE_ATTR_VALUE}"]`);
+    const target = event.target?.closest?.(SENTENCE_SELECTOR);
     if (!target) return;
 
     if (event?.type === 'pointerup') {
@@ -370,6 +405,7 @@
   };
 
   const enableSentenceMode = () => {
+    disableWordMode();
     unwrapSentenceTags();
     selectionAnchor = null;
     sentenceIdCounter = 0;
@@ -392,8 +428,8 @@
   const handleOutsideSelectionClear = (event) => {
     if (!config?.configExtendSelection) return;
     if (!selectionAnchor) return;
-    const isSentenceTarget = event.target?.closest?.(`${CUSTOM_SENTENCE_TAG}[${CUSTOM_SENTENCE_ATTR}="${CUSTOM_SENTENCE_ATTR_VALUE}"]`);
-    if (isSentenceTarget) return;
+    const isSegmentTarget = isActiveSegmentTarget(event.target);
+    if (isSegmentTarget) return;
 
     pendingOutsideTap = true;
 
@@ -425,6 +461,213 @@
   };
 
   // ========================================
+  // Word Segmentation
+  // ========================================
+  const wrapWordRun = (nodes) => {
+    if (!nodes || nodes.length === 0) return;
+
+    const segmenter = initWordSegmenter();
+    if (!segmenter) return;
+
+    const fullText = nodes.map(node => node.nodeValue || '').join('');
+    if (!fullText.trim()) return;
+
+    const segments = Array.from(segmenter.segment(fullText));
+    if (!segments.length) return;
+
+    const wordBoundaries = [];
+    segments.forEach(({ segment, index, isWordLike }) => {
+      if (!isWordLike) return;
+      if (!segment || /^\s+$/.test(segment)) return;
+      wordIdCounter += 1;
+      wordBoundaries.push({
+        id: wordIdCounter,
+        start: index,
+        end: index + segment.length,
+        text: segment
+      });
+    });
+
+    if (!wordBoundaries.length) return;
+
+    let currentOffset = 0;
+    const nodesToProcess = nodes.map(node => {
+      const startOffset = currentOffset;
+      const endOffset = currentOffset + node.nodeValue.length;
+      currentOffset = endOffset;
+      return { node, startOffset, endOffset };
+    });
+
+    nodesToProcess.forEach(({ node, startOffset, endOffset }) => {
+      const nodeValue = node.nodeValue;
+      const fragment = document.createDocumentFragment();
+
+      let lastPos = 0;
+      wordBoundaries.forEach(({ id, start, end }) => {
+        const overlapStart = Math.max(start, startOffset);
+        const overlapEnd = Math.min(end, endOffset);
+
+        if (overlapStart < overlapEnd) {
+          const localStart = overlapStart - startOffset;
+          const localEnd = overlapEnd - startOffset;
+
+          if (lastPos < localStart) {
+            fragment.appendChild(document.createTextNode(nodeValue.substring(lastPos, localStart)));
+          }
+
+          const wrapper = document.createElement(CUSTOM_WORD_TAG);
+          wrapper.setAttribute(CUSTOM_WORD_ATTR, CUSTOM_WORD_ATTR_VALUE);
+          wrapper.setAttribute('data-word-id', id);
+          wrapper.textContent = nodeValue.substring(localStart, localEnd);
+          fragment.appendChild(wrapper);
+
+          lastPos = localEnd;
+        }
+      });
+
+      if (lastPos < nodeValue.length) {
+        fragment.appendChild(document.createTextNode(nodeValue.substring(lastPos)));
+      }
+
+      if (fragment.hasChildNodes()) {
+        node.parentNode?.replaceChild(fragment, node);
+      }
+    });
+  };
+
+  const wrapWordsInParent = (parent) => {
+    if (!parent) return;
+
+    const runs = collectTextNodeRuns(parent);
+    if (!runs.length) return;
+
+    runs.forEach(run => {
+      wrapWordRun(run);
+    });
+  };
+
+  const wrapWordsInRoot = (root) => {
+    if (!root) return;
+
+    const blockElements = root.querySelectorAll(BLOCK_SELECTOR);
+
+    blockElements.forEach(element => {
+      if (!element.closest(WORD_SELECTOR)) {
+        wrapWordsInParent(element);
+      }
+    });
+
+    const directTextNodes = collectTextNodes(root).filter(node => node.parentElement === root);
+    if (directTextNodes.length > 0) {
+      wrapWordsInParent(root);
+    }
+  };
+
+  const unwrapWordTags = () => {
+    const wordTags = document.querySelectorAll(WORD_SELECTOR);
+    wordTags.forEach(tag => {
+      tag.replaceWith(document.createTextNode(tag.textContent || ''));
+    });
+  };
+
+  const getContiguousWordParts = (target, wordId, scope) => {
+    const wordParts = Array.from(scope.querySelectorAll(`${CUSTOM_WORD_TAG}[data-word-id="${wordId}"]`));
+    if (!wordParts.length) return [];
+
+    const targetIndex = wordParts.indexOf(target);
+    if (targetIndex === -1) return [target];
+
+    const hasNoTextBetween = (left, right) => {
+      const range = document.createRange();
+      range.setStartAfter(left);
+      range.setEndBefore(right);
+      return range.toString().length === 0;
+    };
+
+    let start = targetIndex;
+    for (let i = targetIndex - 1; i >= 0; i--) {
+      if (!hasNoTextBetween(wordParts[i], wordParts[i + 1])) break;
+      start = i;
+    }
+
+    let end = targetIndex;
+    for (let i = targetIndex; i < wordParts.length - 1; i++) {
+      if (!hasNoTextBetween(wordParts[i], wordParts[i + 1])) break;
+      end = i + 1;
+    }
+
+    return wordParts.slice(start, end + 1);
+  };
+
+  const handleWordClick = (event) => {
+    const target = event.target?.closest?.(WORD_SELECTOR);
+    if (!target) return;
+
+    if (event?.type === 'pointerup') {
+      lastPointerUpTs = Date.now();
+    } else if (event?.type === 'click') {
+      if (Date.now() - lastPointerUpTs < 400) return;
+    }
+
+    pendingOutsideTap = false;
+    const wordId = target.getAttribute('data-word-id');
+    const scope = target.closest(BLOCK_SELECTOR) || target.parentElement || document.body || document.documentElement;
+    const wordParts = getContiguousWordParts(target, wordId, scope);
+    if (!wordParts.length) return;
+
+    const firstPart = wordParts[0];
+    const lastPart = wordParts[wordParts.length - 1];
+
+    const selection = window.getSelection();
+    if (!selection) return;
+
+    const shouldExtend = Boolean(config?.configExtendSelection);
+
+    if (!shouldExtend) {
+      selectionAnchor = null;
+      const range = document.createRange();
+      range.setStartBefore(firstPart);
+      range.setEndAfter(lastPart);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    } else {
+      if (!selectionAnchor || !isNodeInDocument(selectionAnchor.startNode) || !isNodeInDocument(selectionAnchor.endNode)) {
+        selectionAnchor = { startNode: firstPart, endNode: lastPart };
+      }
+
+      const startNode = getEarlierNode(selectionAnchor.startNode, firstPart);
+      const endNode = getLaterNode(selectionAnchor.endNode, lastPart);
+
+      const range = document.createRange();
+      range.setStartBefore(startNode);
+      range.setEndAfter(endNode);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+  };
+
+  const enableWordMode = () => {
+    disableSentenceMode();
+    unwrapWordTags();
+    selectionAnchor = null;
+    wordIdCounter = 0;
+    const root = document.body || document.documentElement;
+    if (root) {
+      wrapWordsInRoot(root);
+    }
+
+    document.addEventListener('click', handleWordClick, true);
+  };
+
+  const disableWordMode = () => {
+    document.removeEventListener('click', handleWordClick, true);
+    unwrapWordTags();
+    wordIdCounter = 0;
+    selectionAnchor = null;
+    pendingOutsideTap = false;
+  };
+
+  // ========================================
   // Configuration Application
   // ========================================
   const applyConfig = (newConfig) => {
@@ -439,11 +682,15 @@
     if (config.configEnabled) {
       if (config.configGranularity === 'sentence') {
         enableSentenceMode();
+      } else if (config.configGranularity === 'word') {
+        enableWordMode();
       } else {
         disableSentenceMode();
+        disableWordMode();
       }
     } else {
       disableSentenceMode();
+      disableWordMode();
     }
 
   };
@@ -575,11 +822,15 @@
     if (config.configEnabled) {
       if (config.configGranularity === 'sentence') {
         enableSentenceMode();
+      } else if (config.configGranularity === 'word') {
+        enableWordMode();
       } else {
         disableSentenceMode();
+        disableWordMode();
       }
     } else {
       disableSentenceMode();
+      disableWordMode();
     }
 
   };

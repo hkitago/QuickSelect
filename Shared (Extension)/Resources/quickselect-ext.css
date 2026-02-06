@@ -48,3 +48,8 @@ span[data-qs='sentence'] {
   display: inline;
   cursor: text !important;
 }
+
+span[data-qs='word'] {
+  display: inline;
+  cursor: text !important;
+}
