@@ -63,6 +63,7 @@
     'A',
     'BUTTON'
   ]);
+  const SKIP_SELECTOR = Array.from(SKIP_TAGS).map(tag => tag.toLowerCase()).join(', ');
 
   let sentenceSegmenter = null;
   let wordSegmenter = null;
@@ -91,8 +92,11 @@
 
   const isActiveSegmentTarget = (target) => {
     const selector = getActiveSegmentSelector();
-    if (!selector) return false;
-    return Boolean(target?.closest?.(selector));
+    if (selector) return Boolean(target?.closest?.(selector));
+    if (config?.configGranularity === 'paragraph') {
+      return Boolean(getParagraphElementFromTarget(target));
+    }
+    return false;
   };
 
   const initSentenceSegmenter = () => {
@@ -125,6 +129,246 @@
     if (parent.closest(WORD_SELECTOR)) return true;
     if (SKIP_TAGS.has(parent.tagName)) return true;
     return false;
+  };
+
+  const isInsideSkippableElement = (target) => {
+    if (!target?.closest || !SKIP_SELECTOR) return false;
+    return Boolean(target.closest(SKIP_SELECTOR));
+  };
+
+  const isRangeInDocument = (range) => {
+    if (!range?.startContainer || !range?.endContainer) return false;
+    return document.contains(range.startContainer) && document.contains(range.endContainer);
+  };
+
+  const findTextNodeInElement = (element, direction = 'first') => {
+    if (!element) return null;
+    const walker = document.createTreeWalker(
+      element,
+      NodeFilter.SHOW_TEXT,
+      {
+        acceptNode: (node) => {
+          if (!node?.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+          return NodeFilter.FILTER_ACCEPT;
+        }
+      }
+    );
+
+    if (direction === 'last') {
+      let last = null;
+      while (walker.nextNode()) {
+        last = walker.currentNode;
+      }
+      return last;
+    }
+
+    return walker.nextNode() ? walker.currentNode : null;
+  };
+
+  const resolveTextNodeFromPosition = (node, offset) => {
+    if (!node) return null;
+    if (node.nodeType === Node.TEXT_NODE) return node;
+    if (node.nodeType !== Node.ELEMENT_NODE) return null;
+
+    const element = node;
+    if (!element.childNodes || element.childNodes.length === 0) {
+      return findTextNodeInElement(element, 'first');
+    }
+
+    const clampedOffset = Math.max(0, Math.min(offset ?? 0, element.childNodes.length));
+    let child = element.childNodes[clampedOffset] || element.childNodes[clampedOffset - 1];
+    if (!child) {
+      return findTextNodeInElement(element, 'first');
+    }
+
+    if (child.nodeType === Node.TEXT_NODE) return child;
+    if (child.nodeType === Node.ELEMENT_NODE) {
+      const direction = clampedOffset >= element.childNodes.length ? 'last' : 'first';
+      return findTextNodeInElement(child, direction) || findTextNodeInElement(element, 'first');
+    }
+
+    return findTextNodeInElement(element, 'first');
+  };
+
+  const getTextNodeAtPoint = (element, x, y) => {
+    if (!element || x == null || y == null) return null;
+    const walker = document.createTreeWalker(
+      element,
+      NodeFilter.SHOW_TEXT,
+      {
+        acceptNode: (node) => {
+          if (!node?.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+          return NodeFilter.FILTER_ACCEPT;
+        }
+      }
+    );
+
+    while (walker.nextNode()) {
+      const textNode = walker.currentNode;
+      const range = document.createRange();
+      range.selectNodeContents(textNode);
+      const rects = range.getClientRects();
+      for (const rect of rects) {
+        if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+          return textNode;
+        }
+      }
+    }
+
+    return null;
+  };
+
+  const getPointNodeFromEvent = (event) => {
+    if (!event || event.clientX == null || event.clientY == null) return null;
+    if (document.caretPositionFromPoint) {
+      const position = document.caretPositionFromPoint(event.clientX, event.clientY);
+      return resolveTextNodeFromPosition(position?.offsetNode ?? null, position?.offset ?? 0)
+        ?? position?.offsetNode
+        ?? null;
+    }
+    if (document.caretRangeFromPoint) {
+      const range = document.caretRangeFromPoint(event.clientX, event.clientY);
+      return resolveTextNodeFromPosition(range?.startContainer ?? null, range?.startOffset ?? 0)
+        ?? range?.startContainer
+        ?? null;
+    }
+    if (event.rangeParent) {
+      return resolveTextNodeFromPosition(event.rangeParent, event.rangeOffset ?? 0)
+        ?? event.rangeParent
+        ?? null;
+    }
+
+    const element = document.elementFromPoint(event.clientX, event.clientY);
+    if (element) {
+      return getTextNodeAtPoint(element, event.clientX, event.clientY) ?? element;
+    }
+
+    return null;
+  };
+
+  const getParagraphElementFromTarget = (target) => {
+    if (!target) return null;
+    const element = target.nodeType === Node.ELEMENT_NODE ? target : target.parentElement;
+    if (!element) return null;
+    if (isInsideSkippableElement(element)) return null;
+
+    let current = element;
+    while (current && current !== document.body && current !== document.documentElement) {
+      if (current.matches?.(BLOCK_SELECTOR)) {
+        if (current.isContentEditable) return null;
+        if (SKIP_TAGS.has(current.tagName)) return null;
+        if (!current.querySelector(BLOCK_SELECTOR)) return current;
+      }
+      current = current.parentElement;
+    }
+
+    if (document.body && !document.body.querySelector(BLOCK_SELECTOR)) {
+      return document.body;
+    }
+
+    return null;
+  };
+
+  const collectDoubleBrSequences = (container) => {
+    const sequences = [];
+    let current = null;
+
+    const walker = document.createTreeWalker(
+      container,
+      NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT | NodeFilter.SHOW_COMMENT,
+      {
+        acceptNode: (node) => {
+          if (node.nodeType === Node.COMMENT_NODE) return NodeFilter.FILTER_REJECT;
+          if (node.nodeType === Node.TEXT_NODE) {
+            return node.nodeValue?.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+          }
+          if (node.nodeType === Node.ELEMENT_NODE) {
+            if (SKIP_TAGS.has(node.tagName)) return NodeFilter.FILTER_REJECT;
+            return NodeFilter.FILTER_ACCEPT;
+          }
+          return NodeFilter.FILTER_REJECT;
+        }
+      }
+    );
+
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      const isBr = node.nodeType === Node.ELEMENT_NODE && node.tagName === 'BR';
+
+      if (isBr) {
+        if (!current) {
+          current = { firstBr: node, lastBr: node, length: 1 };
+        } else {
+          current.lastBr = node;
+          current.length += 1;
+        }
+        continue;
+      }
+
+      if (current && current.length >= 2) {
+        sequences.push(current);
+      }
+      current = null;
+    }
+
+    if (current && current.length >= 2) {
+      sequences.push(current);
+    }
+
+    return sequences;
+  };
+
+  const getParagraphRangeFromDoubleBr = (container, target) => {
+    const sequences = collectDoubleBrSequences(container);
+    if (!sequences.length) return null;
+
+    let targetNode = target?.nodeType === Node.TEXT_NODE ? target : null;
+    if (!targetNode) {
+      targetNode = target?.nodeType === Node.ELEMENT_NODE ? target : target?.parentElement;
+    }
+    if (!targetNode) return null;
+    if (!container.contains(targetNode) && container !== targetNode) return null;
+
+    let prev = null;
+    let next = null;
+
+    if (targetNode.nodeType === Node.ELEMENT_NODE && targetNode.tagName === 'BR') {
+      const targetIndex = sequences.findIndex(seq =>
+        isNodeBefore(seq.firstBr, targetNode) && isNodeBefore(targetNode, seq.lastBr)
+      );
+      if (targetIndex >= 0) {
+        prev = sequences[targetIndex];
+        next = sequences[targetIndex + 1] ?? null;
+      }
+    }
+
+    if (!prev && !next) {
+      for (const seq of sequences) {
+        if (isNodeBefore(seq.lastBr, targetNode)) {
+          prev = seq;
+          continue;
+        }
+        if (isNodeBefore(targetNode, seq.firstBr)) {
+          next = seq;
+          break;
+        }
+      }
+    }
+
+    const range = document.createRange();
+    if (prev) {
+      range.setStartAfter(prev.lastBr);
+    } else {
+      range.setStartBefore(container);
+    }
+
+    if (next) {
+      range.setEndBefore(next.firstBr);
+    } else {
+      range.setEndAfter(container);
+    }
+
+    return range;
   };
 
   // 新規: テキストノードを収集する関数
@@ -406,6 +650,7 @@
 
   const enableSentenceMode = () => {
     disableWordMode();
+    disableParagraphMode();
     unwrapSentenceTags();
     selectionAnchor = null;
     sentenceIdCounter = 0;
@@ -648,6 +893,7 @@
 
   const enableWordMode = () => {
     disableSentenceMode();
+    disableParagraphMode();
     unwrapWordTags();
     selectionAnchor = null;
     wordIdCounter = 0;
@@ -663,6 +909,72 @@
     document.removeEventListener('click', handleWordClick, true);
     unwrapWordTags();
     wordIdCounter = 0;
+    selectionAnchor = null;
+    pendingOutsideTap = false;
+  };
+
+  // ========================================
+  // Paragraph Selection
+  // ========================================
+  const handleParagraphClick = (event) => {
+    const paragraph = getParagraphElementFromTarget(event.target);
+    if (!paragraph) return;
+
+    if (event?.type === 'pointerup') {
+      lastPointerUpTs = Date.now();
+    } else if (event?.type === 'click') {
+      if (Date.now() - lastPointerUpTs < 400) return;
+    }
+
+    pendingOutsideTap = false;
+    const selection = window.getSelection();
+    if (!selection) return;
+
+    const shouldExtend = Boolean(config?.configExtendSelection);
+    const referenceNode = getPointNodeFromEvent(event) ?? event.target;
+    const paragraphRange = getParagraphRangeFromDoubleBr(paragraph, referenceNode);
+    const baseRange = paragraphRange ?? (() => {
+      const range = document.createRange();
+      range.setStartBefore(paragraph);
+      range.setEndAfter(paragraph);
+      return range;
+    })();
+
+    if (!shouldExtend) {
+      selectionAnchor = null;
+      selection.removeAllRanges();
+      selection.addRange(baseRange);
+    } else {
+      if (!selectionAnchor?.range || !isRangeInDocument(selectionAnchor.range)) {
+        selectionAnchor = { range: baseRange.cloneRange() };
+      }
+
+      const anchorRange = selectionAnchor.range;
+      const startRange = anchorRange.compareBoundaryPoints(Range.START_TO_START, baseRange) <= 0
+        ? anchorRange
+        : baseRange;
+      const endRange = anchorRange.compareBoundaryPoints(Range.END_TO_END, baseRange) >= 0
+        ? anchorRange
+        : baseRange;
+
+      const range = document.createRange();
+      range.setStart(startRange.startContainer, startRange.startOffset);
+      range.setEnd(endRange.endContainer, endRange.endOffset);
+      selectionAnchor = { range: range.cloneRange() };
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+  };
+
+  const enableParagraphMode = () => {
+    disableSentenceMode();
+    disableWordMode();
+    selectionAnchor = null;
+    document.addEventListener('click', handleParagraphClick, true);
+  };
+
+  const disableParagraphMode = () => {
+    document.removeEventListener('click', handleParagraphClick, true);
     selectionAnchor = null;
     pendingOutsideTap = false;
   };
@@ -684,13 +996,17 @@
         enableSentenceMode();
       } else if (config.configGranularity === 'word') {
         enableWordMode();
+      } else if (config.configGranularity === 'paragraph') {
+        enableParagraphMode();
       } else {
         disableSentenceMode();
         disableWordMode();
+        disableParagraphMode();
       }
     } else {
       disableSentenceMode();
       disableWordMode();
+      disableParagraphMode();
     }
 
   };
@@ -824,13 +1140,17 @@
         enableSentenceMode();
       } else if (config.configGranularity === 'word') {
         enableWordMode();
+      } else if (config.configGranularity === 'paragraph') {
+        enableParagraphMode();
       } else {
         disableSentenceMode();
         disableWordMode();
+        disableParagraphMode();
       }
     } else {
       disableSentenceMode();
       disableWordMode();
+      disableParagraphMode();
     }
 
   };
