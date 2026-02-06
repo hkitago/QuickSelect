@@ -4,7 +4,7 @@
         "description": "The display name for the extension."
     },
     "extension_description": {
-        "message": "Select text faster and take action instantly.",
+        "message": "टेक्स्ट को तेज़ी से चुनें और उसका तुरंत उपयोग करें।",
         "description": "Description of what the extension does."
     }
 }

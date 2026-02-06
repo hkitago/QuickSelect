@@ -1,0 +1,50 @@
+* {
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+  user-select: text !important;
+  -webkit-touch-callout: default !important;
+  -webkit-user-drag: auto !important;
+}
+
+body {
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  user-select: text !important;
+}
+
+input,
+textarea,
+button,
+select,
+a {
+  -webkit-user-select: text !important;
+  user-select: text !important;
+}
+
+* {
+  cursor: auto !important;
+}
+
+a, button {
+  cursor: pointer !important;
+}
+
+input, textarea {
+  cursor: text !important;
+}
+
+* {
+  pointer-events: auto !important;
+}
+
+*::before,
+*::after {
+  -webkit-user-select: text !important;
+  user-select: text !important;
+}
+
+span[data-qs='sentence'] {
+  display: inline;
+  cursor: text !important;
+}

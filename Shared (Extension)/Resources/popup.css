@@ -1,15 +1,222 @@
 :root {
     color-scheme: light dark;
+    --toggle-x: 16px;
+}
+.os-macos {
+  --toggle-x: 12px;
+}
+
+* {
+  -webkit-tap-highlight-color:rgb(0 0 0/0);
+  -webkit-user-select:none;
+  -webkit-touch-callout:none;
+}
+
+html {
+  font: -apple-system-body;
+  margin: 0;
+  padding: 0;
 }
 
 body {
-    width: 100px;
-    padding: 10px;
+  width: 452px;
+  margin: 15px 0 20px;
+  padding: 0;
+}
 
-    font-family: system-ui;
-    text-align: center;
+body.os-ios {
+  width: 100%;
+}
+
+body.os-ios, body.os-ipados {
+  background-color: rgb(240 242 242);
+}
+
+.rtl {
+  direction: rtl;
+  text-align: right;
+}
+
+section {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 0 15px;
+  overflow: hidden;
+}
+
+section:not(:last-child) {
+  margin-bottom: 15px;
+}
+
+ul {
+  width: 100%;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  border-radius: 15px;
+}
+
+li {
+  background-color: rgb(254 255 255);
+  overflow: hidden;
+}
+
+ul > li:not(:last-child) {
+  margin-bottom: 1px;
+}
+
+li > div {
+  margin: 10px 15px;
+  display: flex;
+  align-items: center;
+}
+
+li > div > label {
+  flex: 1;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+input[type='checkbox'],
+input[type='radio']{
+  display: none;
+}
+
+.checkmark {
+  display: inline-block;
+  width: 48px;
+  height: 16px;
+  cursor: pointer;
+  background-color: transparent;
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: auto 100%;
+}
+
+.os-macos .checkmark {
+  width: 36px;
+  height: 14px;
+}
+
+input[type='radio']:checked ~ .checkmark {
+  background-image: url(./images/checkmark.svg);
+}
+
+.toggle {
+  display: inline-block;
+  width: 48px;
+  height: 22px;
+  background: rgb(197 197 197);
+  border-radius: 11px;
+  position: relative;
+  cursor: pointer;
+  margin: 0;
+}
+
+.os-macos .toggle {
+  background: rgb(221 221 221);
+  width: 36px;
+  height: 16px;
+}
+
+.toggle::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 28px;
+  height: 18px;
+  background: #FFF;
+  border-radius: 9px;
+}
+
+.os-macos .toggle::before {
+  top: 1px;
+  left: 1px;
+  width: 22px;
+  height: 14px;
+  border-radius: 7px;
+}
+
+input[type='checkbox']:checked ~ .toggle {
+  background: rgb(53 199 89);
+}
+
+.os-macos input[type='checkbox']:checked ~ .toggle {
+  background: rgb(18 122 246);
+}
+
+input[type='checkbox']:checked ~ .toggle::before {
+  transform: translateX(var(--toggle-x));
+}
+
+.os-macos input[type='checkbox']:checked ~ .toggle::before {
+  transform: translateX(var(--toggle-x));
+}
+
+@keyframes bounce-on {
+  0%   { transform: translateX(0px) scale(1); opacity: 1; }
+  50%  { transform: translateX(var(--toggle-x)) scale(2); opacity: 0.5; }
+  100% { transform: translateX(var(--toggle-x)) scale(1); opacity: 1; }
+}
+
+@keyframes bounce-off {
+  0%   { transform: translateX(var(--toggle-x)) scale(1); opacity: 1; }
+  50%  { transform: translateX(0px) scale(2);  opacity: 0.5; }
+  100% { transform: translateX(0px) scale(1); opacity: 1; }
+}
+
+input[type='checkbox'].toggle-disabled ~ .toggle::before {
+  animation: none !important;
+}
+
+input[type='checkbox']:checked ~ .toggle::before {
+  animation: bounce-on 0.4s ease forwards;
+}
+
+input[type='checkbox']:not(:checked) ~ .toggle::before {
+  animation: bounce-off 0.4s ease forwards;
 }
 
 @media (prefers-color-scheme: dark) {
-    /* Dark Mode styles go here. */
+  body.os-ios, body.os-ipados {
+    background-color: rgb(30 30 30);
+  }
+
+  li {
+    background-color: rgb(37 37 37);
+  }
+  
+  li.domain-item > div > span.tab-count {
+    background-color: rgb(62 62 65);
+  }
+
+  .os-macos .toggle {
+    background: rgb(58 58 58);
+  }
+}
+
+@supports (-apple-visual-effect: -apple-system-glass-material) {
+  html {
+    background: transparent;
+    -apple-visual-effect: -apple-system-glass-material;
+  }
+  
+  body {
+    background: transparent;
+  }
+
+  @keyframes bounce-on {
+    0%   { transform: translateX(0px) scale(2); background: transparent; -apple-visual-effect: -apple-system-glass-material; }
+    50%  { transform: translateX(var(--toggle-x)) scale(2); background: transparent; -apple-visual-effect: -apple-system-glass-material; }
+    100% { transform: translateX(var(--toggle-x)) scale(1); }
+  }
+
+  @keyframes bounce-off {
+    0%   { transform: translateX(var(--toggle-x)) scale(2); background: transparent; -apple-visual-effect: -apple-system-glass-material; }
+    50%  { transform: translateX(0px) scale(2); background: transparent; -apple-visual-effect: -apple-system-glass-material; }
+    100% { transform: translateX(0px) scale(1); }
+  }
 }

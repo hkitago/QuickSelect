@@ -1,10 +1,10 @@
 {
     "extension_name": {
-        "message": "QuickSelect",
+        "message": "HurtigValg",
         "description": "The display name for the extension."
     },
     "extension_description": {
-        "message": "Select text faster and take action instantly.",
+        "message": "Vælg tekst hurtigere og brug den med det samme.",
         "description": "Description of what the extension does."
     }
 }

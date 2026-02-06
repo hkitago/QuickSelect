@@ -1,10 +1,10 @@
 {
     "extension_name": {
-        "message": "QuickSelect",
+        "message": "ChọnNhanh",
         "description": "The display name for the extension."
     },
     "extension_description": {
-        "message": "Select text faster and take action instantly.",
+        "message": "Chọn văn bản nhanh hơn và sử dụng tức thì.",
         "description": "Description of what the extension does."
     }
 }

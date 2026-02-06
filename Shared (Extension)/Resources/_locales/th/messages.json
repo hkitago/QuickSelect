@@ -1,0 +1,10 @@
+{
+    "extension_name": {
+        "message": "เลือกด่วน",
+        "description": "The display name for the extension."
+    },
+    "extension_description": {
+        "message": "เลือกข้อความได้เร็วขึ้นและใช้งานได้อย่างรวดเร็ว",
+        "description": "Description of what the extension does."
+    }
+}

@@ -1,10 +1,10 @@
 {
     "extension_name": {
-        "message": "QuickSelect",
+        "message": "BrziOdabir",
         "description": "The display name for the extension."
     },
     "extension_description": {
-        "message": "Select text faster and take action instantly.",
+        "message": "Odaberite tekst brže i upotrijebite ga odmah.",
         "description": "Description of what the extension does."
     }
 }

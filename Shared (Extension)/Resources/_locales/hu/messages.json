@@ -1,10 +1,10 @@
 {
     "extension_name": {
-        "message": "QuickSelect",
+        "message": "GyorsKiválasztás",
         "description": "The display name for the extension."
     },
     "extension_description": {
-        "message": "Select text faster and take action instantly.",
+        "message": "Jelöljön ki szöveget gyorsabban, és használja azonnal.",
         "description": "Description of what the extension does."
     }
 }

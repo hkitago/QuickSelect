@@ -1,10 +1,10 @@
 {
     "extension_name": {
-        "message": "QuickSelect",
+        "message": "SelecțieRapidă",
         "description": "The display name for the extension."
     },
     "extension_description": {
-        "message": "Select text faster and take action instantly.",
+        "message": "Selectează textul mai rapid și folosește-l imediat.",
         "description": "Description of what the extension does."
     }
 }

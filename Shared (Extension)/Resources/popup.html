@@ -6,6 +6,22 @@
     <script type="module" src="popup.js"></script>
 </head>
 <body>
-    <strong>Hello World!</strong>
+    <section>
+      <ul>
+        <li><div><label for="configEnabled">Enable</label><input type="checkbox" id="configEnabled" class="toggle-disabled"><span class="toggle"></span></div></li>
+      </ul>
+    </section>
+    <section id="configGranularities">
+      <ul>
+        <li><div><label for="granularityParagraph">Paragraph</label><input type="radio" id="granularityParagraph" name="configGranularity" value="paragraph"><span class="checkmark"></span></div></li>
+        <li><div><label for="granularitySentence">Sentence</label><input type="radio" id="granularitySentence" name="configGranularity" value="sentence"><span class="checkmark"></span></div></li>
+        <li><div><label for="granularityWord">Word</label><input type="radio" id="granularityWord" name="configGranularity" value="word"><span class="checkmark"></span></div></li>
+      </ul>
+    </section>
+    <section id="configOptions">
+      <ul>
+        <li><div><label for="configExtendSelection">Extend selection</label><input type="checkbox" id="configExtendSelection" class="toggle-disabled"><span class="toggle"></span></div></li>
+      </ul>
+    </section>
 </body>
 </html>
