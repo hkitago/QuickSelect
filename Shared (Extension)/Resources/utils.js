@@ -1,36 +1,8 @@
-//export const isIOS = () => {
-//  return /iPhone|iPod/.test(navigator.userAgent);
-//};
-//
-//export const isIPadOS = () => {
-//  return navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
-//};
-//
-//export const isMacOS = () => {
-//  return navigator.platform.includes('Mac') && !isIPadOS();
-//};
-//
-//export const applyPlatformClass = () => {
-//  const body = document.body;
-//
-//  if (isIOS()) {
-//    body.classList.add('os-ios');
-//  } else if (isIPadOS()) {
-//    body.classList.add('os-ipados');
-//  } else if (isMacOS()) {
-//    body.classList.add('os-macos');
-//  }
-//};
-
 // ============================================
-// Platform Detection (自動初期化版)
+// Platform Detection
 // ============================================
-
 const PLATFORM_KEY = 'platformInfo';
 
-/**
- * プラットフォーム情報を検出してストレージに保存
- */
 const detectAndSavePlatform = async () => {
   const userAgent = navigator.userAgent;
   const platform = navigator.platform;
@@ -57,44 +29,32 @@ const detectAndSavePlatform = async () => {
   return platformInfo;
 };
 
-/**
- * utils.jsが読み込まれた時点で自動的にプラットフォーム検出を実行
- * background/service workerで最初にこのファイルがimportされることを想定
- */
 (async () => {
-  // ストレージに既に存在するかチェック
   try {
     const { [PLATFORM_KEY]: existing } = await browser.storage.local.get(PLATFORM_KEY);
     
     if (!existing) {
-      // 未初期化の場合のみ検出・保存
       await detectAndSavePlatform();
     } else {
-      console.log('[QuickSelectExtension] Platform info already initialized:', existing);
+      console.warn('[QuickSelectExtension] Platform info already initialized:', existing);
     }
   } catch (error) {
-    console.error('[QuickSelectExtension] Platform initialization error:', error);
+    console.error('[QuickSelectExtension] Failed to initialize platform info:', error);
   }
 })();
 
-/**
- * ストレージからプラットフォーム情報を取得
- * すべてのコンテキスト（popup, content script等）で使用可能
- */
 export const getPlatformInfo = async () => {
   try {
     const { [PLATFORM_KEY]: platformInfo } = await browser.storage.local.get(PLATFORM_KEY);
     
     if (!platformInfo) {
       console.warn('[QuickSelectExtension] Platform info not initialized, detecting now...');
-      // フォールバック: その場で検出
       return await detectAndSavePlatform();
     }
     
     return platformInfo;
   } catch (error) {
-    console.error('[QuickSelectExtension] Failed to get platform info:', error);
-    // エラー時のフォールバック
+    console.warn('[QuickSelectExtension] Failed to get platform info:', error);
     return {
       isIOS: false,
       isIPadOS: false,
@@ -103,16 +63,6 @@ export const getPlatformInfo = async () => {
   }
 };
 
-/**
- * プラットフォーム情報を強制的に再検出（通常は不要）
- */
-export const reinitializePlatform = async () => {
-  return await detectAndSavePlatform();
-};
-
-/**
- * content scriptやpopupで<body>にプラットフォームクラスを適用
- */
 export const applyPlatformClass = async () => {
   const { isIOS, isIPadOS, isMacOS } = await getPlatformInfo();
   const body = document.body;
