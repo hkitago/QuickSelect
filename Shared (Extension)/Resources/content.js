@@ -1002,19 +1002,11 @@
     config = { ...DEFAULT_SETTINGS, ...newConfig };
 
     toggleQuickSelectCSS(config);
-    toggleEventRestrictions(config);
 //    toggleDOMObserver(config);
     requestUpdateIconToBackground();
 
     applySelectionModeFromConfig();
   };
-
-  // ========================================
-  // Extension for Safari (macOS/iOS):
-  // Core logic for removing selection & copy restrictions
-  // ========================================
-  let selectionObserver = null;
-  const RESTRICTION_EVENTS = ['contextmenu', 'selectstart', 'copy', 'cut', 'paste', 'dragstart'];
 
   // ========================================
   // Toggle CSS rules to force user-select and touch-callout
@@ -1038,28 +1030,10 @@
   };
 
   // ========================================
-  // Intercept and block restriction events at the capture phase
-  // ========================================
-  const handleRestrictionEvent = (event) => {
-    event.stopPropagation();
-    event.stopImmediatePropagation();
-    // Do not call preventDefault() to keep native browser behavior
-  };
-
-  // ========================================
-  // Toggle JS-based event listeners
-  // ========================================
-  const toggleEventRestrictions = (config) => {
-    const method = config?.configEnabled ? 'addEventListener' : 'removeEventListener';
-    
-    RESTRICTION_EVENTS.forEach(type => {
-      window[method](type, handleRestrictionEvent, { capture: true });
-    });
-  };
-
-  // ========================================
   // Observe DOM changes for SPA and lazy-loaded content
   // ========================================
+  let selectionObserver = null;
+
   const toggleDOMObserver = (config) => {
     if (!config?.configEnabled) {
       selectionObserver?.disconnect();
