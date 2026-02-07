@@ -133,7 +133,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "クイックセレクト"
+            "value" : "爆速文字選択"
           }
         },
         "ko" : {
@@ -372,7 +372,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "クイックセレクト"
+            "value" : "爆速文字選択"
           }
         },
         "ko" : {
