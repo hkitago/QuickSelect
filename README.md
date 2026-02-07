@@ -2,7 +2,7 @@
 
 This Safari extension enables fast, precise text selection on any webpage by letting you select text at the paragraph, sentence, or word level, with an option to extend the current selection. It works across all parts of the site, respects editable fields and code blocks, and adapts to the content language using built-in sentence segmentation when system support is available. A simple toolbar toggle and status icon make it easy to see when it’s active and which mode is selected.
 
-Designed for people who read or research online, this extension supports cleaner quoting, translation, and note-taking workflows. It’s ideal for students, writers, editors, translators, and anyone working across multiple languages. If you regularly scan long articles, compare passages, or collect snippets for documents or study materials, it helps keep text selection consistent and reliable without breaking your flow.
+When text selection feels inconsistent or hard to control, this extension provides a more predictable alternative. Designed for people who read or research online, it supports cleaner quoting, translation, and note-taking workflows. It’s ideal for students, writers, editors, translators, and anyone working across multiple languages. If you regularly scan long articles, compare passages, or collect snippets for documents or study materials, it helps keep text selection consistent and reliable without breaking your flow.
 
 ## Installation & Uninstallation
 
@@ -23,6 +23,10 @@ To uninstall the extension, similarly to the installation process, toggle the ex
 4. Choose a selection level: Paragraph, Sentence, or Word.
 5. (Optional) Turn on "Extend Selection" if you want to select multiple areas without clearing your previous selection.
 6. Tap or click any text on the page to select it at your chosen level.
+
+> [!IMPORTANT]
+> The DOM observer is disabled by design (see toggleDOMObserver). Word-level segmentation introduces a large number of wrapper elements, which can significantly increase DOM size and impact performance.  
+> As a result, some highly dynamic pages (such as generative AI services) may not work as expected.
 
 ## Latest Version
 
