@@ -371,67 +371,6 @@
     return range;
   };
 
-  const collectTextNodes = (root) => {
-    const walker = document.createTreeWalker(
-      root,
-      NodeFilter.SHOW_TEXT,
-      {
-        acceptNode: (node) => {
-          if (!node?.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
-          if (isSkippableNode(node)) return NodeFilter.FILTER_REJECT;
-          return NodeFilter.FILTER_ACCEPT;
-        }
-      }
-    );
-
-    const textNodes = [];
-    while (walker.nextNode()) {
-      textNodes.push(walker.currentNode);
-    }
-    return textNodes;
-  };
-
-  const groupTextNodesByParent = (textNodes) => {
-    const groups = [];
-    let currentGroup = [];
-    let currentParent = null;
-
-    textNodes.forEach(node => {
-      const parent = node.parentElement;
-      if (parent !== currentParent) {
-        if (currentGroup.length > 0) {
-          groups.push({ parent: currentParent, nodes: currentGroup });
-        }
-        currentParent = parent;
-        currentGroup = [node];
-      } else {
-        currentGroup.push(node);
-      }
-    });
-
-    if (currentGroup.length > 0) {
-      groups.push({ parent: currentParent, nodes: currentGroup });
-    }
-
-    return groups;
-  };
-
-  const getFullTextFromParent = (parent) => {
-    let text = '';
-    const walker = document.createTreeWalker(
-      parent,
-      NodeFilter.SHOW_TEXT,
-      null
-    );
-    
-    while (walker.nextNode()) {
-      if (!isSkippableNode(walker.currentNode)) {
-        text += walker.currentNode.nodeValue;
-      }
-    }
-    return text;
-  };
-
   const collectTextNodeRuns = (parent) => {
     const runs = [];
     let currentRun = [];
