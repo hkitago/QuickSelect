@@ -371,7 +371,6 @@
     return range;
   };
 
-  // 新規: テキストノードを収集する関数
   const collectTextNodes = (root) => {
     const walker = document.createTreeWalker(
       root,
@@ -392,7 +391,6 @@
     return textNodes;
   };
 
-  // 新規: 連続するテキストノードをグループ化
   const groupTextNodesByParent = (textNodes) => {
     const groups = [];
     let currentGroup = [];
@@ -418,7 +416,6 @@
     return groups;
   };
 
-  // 新規: 親要素内の全テキストを取得
   const getFullTextFromParent = (parent) => {
     let text = '';
     const walker = document.createTreeWalker(
@@ -435,7 +432,6 @@
     return text;
   };
 
-  // 新規: <br> を境界としてテキストノードを分割
   const collectTextNodeRuns = (parent) => {
     const runs = [];
     let currentRun = [];
@@ -491,7 +487,53 @@
     return runs;
   };
 
-  // 新規: テキストノードの配列を文単位にラップ
+  const collectTextNodeRunsOutsideBlocks = (container) => {
+    const runs = [];
+    let currentRun = [];
+
+    const pushRun = () => {
+      if (currentRun.length > 0) {
+        runs.push(currentRun);
+        currentRun = [];
+      }
+    };
+
+    const traverse = (node) => {
+      if (!node) return;
+
+      if (node.nodeType === Node.TEXT_NODE) {
+        if (!node.nodeValue || !node.nodeValue.trim()) return;
+        if (isSkippableNode(node)) return;
+        currentRun.push(node);
+        return;
+      }
+
+      if (node.nodeType !== Node.ELEMENT_NODE) return;
+      const element = node;
+
+      if (element.tagName === 'BR') {
+        pushRun();
+        return;
+      }
+
+      if (element.isContentEditable) return;
+      if (SKIP_TAGS.has(element.tagName)) return;
+      if (element.closest(SENTENCE_SELECTOR) || element.closest(WORD_SELECTOR)) return;
+
+      if (element.matches?.(BLOCK_SELECTOR)) {
+        pushRun();
+        return;
+      }
+
+      element.childNodes.forEach(traverse);
+    };
+
+    container.childNodes.forEach(traverse);
+    pushRun();
+
+    return runs;
+  };
+
   const wrapSentenceRun = (nodes) => {
     if (!nodes || nodes.length === 0) return;
 
@@ -562,7 +604,6 @@
     });
   };
 
-  // 修正: 親要素単位で文をセグメント化
   const wrapSentencesInParent = (parent) => {
     if (!parent) return;
 
@@ -577,20 +618,19 @@
   const wrapSentencesInRoot = (root) => {
     if (!root) return;
     
-    // ブロックレベル要素ごとに処理
-    const blockElements = root.querySelectorAll(BLOCK_SELECTOR);
-    
+    const blockElements = Array.from(root.querySelectorAll(BLOCK_SELECTOR));
     blockElements.forEach(element => {
-      if (!element.closest(SENTENCE_SELECTOR)) {
-        wrapSentencesInParent(element);
-      }
+      if (element.closest(SENTENCE_SELECTOR)) return;
+      const runs = collectTextNodeRunsOutsideBlocks(element);
+      runs.forEach(run => {
+        wrapSentenceRun(run);
+      });
     });
     
-    // body直下のテキストノードも処理
-    const directTextNodes = collectTextNodes(root).filter(node => node.parentElement === root);
-    if (directTextNodes.length > 0) {
-      wrapSentencesInParent(root);
-    }
+    const outsideRuns = collectTextNodeRunsOutsideBlocks(root);
+    outsideRuns.forEach(run => {
+      wrapSentenceRun(run);
+    });
   };
 
   const unwrapSentenceTags = () => {
@@ -794,18 +834,19 @@
   const wrapWordsInRoot = (root) => {
     if (!root) return;
 
-    const blockElements = root.querySelectorAll(BLOCK_SELECTOR);
-
+    const blockElements = Array.from(root.querySelectorAll(BLOCK_SELECTOR));
     blockElements.forEach(element => {
-      if (!element.closest(WORD_SELECTOR)) {
-        wrapWordsInParent(element);
-      }
+      if (element.closest(WORD_SELECTOR)) return;
+      const runs = collectTextNodeRunsOutsideBlocks(element);
+      runs.forEach(run => {
+        wrapWordRun(run);
+      });
     });
 
-    const directTextNodes = collectTextNodes(root).filter(node => node.parentElement === root);
-    if (directTextNodes.length > 0) {
-      wrapWordsInParent(root);
-    }
+    const outsideRuns = collectTextNodeRunsOutsideBlocks(root);
+    outsideRuns.forEach(run => {
+      wrapWordRun(run);
+    });
   };
 
   const unwrapWordTags = () => {
@@ -983,7 +1024,6 @@
   // Configuration Application
   // ========================================
   const applyConfig = (newConfig) => {
-//    console.log('[QuickSelectExtension] Apply config:', newConfig);
     config = { ...DEFAULT_SETTINGS, ...newConfig };
 
     toggleQuickSelectCSS(config);
@@ -1008,7 +1048,6 @@
       disableWordMode();
       disableParagraphMode();
     }
-
   };
 
   // ========================================
@@ -1110,7 +1149,7 @@
       sendResponse({ success: true });
     }
     
-    return true;
+    return;
   });
 
   // ========================================
@@ -1152,7 +1191,6 @@
       disableWordMode();
       disableParagraphMode();
     }
-
   };
 
   if (document.readyState === 'loading') {
