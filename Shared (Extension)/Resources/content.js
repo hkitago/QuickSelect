@@ -1023,14 +1023,7 @@
   // ========================================
   // Configuration Application
   // ========================================
-  const applyConfig = (newConfig) => {
-    config = { ...DEFAULT_SETTINGS, ...newConfig };
-
-    toggleQuickSelectCSS(config);
-    toggleEventRestrictions(config);
-//    toggleDOMObserver(config);
-    requestUpdateIconToBackground();
-
+  const applySelectionModeFromConfig = () => {
     if (config.configEnabled) {
       if (config.configGranularity === 'sentence') {
         enableSentenceMode();
@@ -1048,6 +1041,17 @@
       disableWordMode();
       disableParagraphMode();
     }
+  };
+
+  const applyConfig = (newConfig) => {
+    config = { ...DEFAULT_SETTINGS, ...newConfig };
+
+    toggleQuickSelectCSS(config);
+    toggleEventRestrictions(config);
+//    toggleDOMObserver(config);
+    requestUpdateIconToBackground();
+
+    applySelectionModeFromConfig();
   };
 
   // ========================================
@@ -1174,23 +1178,7 @@
     if (isInitialized) return;
     isInitialized = true;
 
-    if (config.configEnabled) {
-      if (config.configGranularity === 'sentence') {
-        enableSentenceMode();
-      } else if (config.configGranularity === 'word') {
-        enableWordMode();
-      } else if (config.configGranularity === 'paragraph') {
-        enableParagraphMode();
-      } else {
-        disableSentenceMode();
-        disableWordMode();
-        disableParagraphMode();
-      }
-    } else {
-      disableSentenceMode();
-      disableWordMode();
-      disableParagraphMode();
-    }
+    applySelectionModeFromConfig();
   };
 
   if (document.readyState === 'loading') {
