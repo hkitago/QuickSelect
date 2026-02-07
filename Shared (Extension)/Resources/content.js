@@ -6,6 +6,7 @@
   };
 
   let config = { ...DEFAULT_SETTINGS };
+  let lastAppliedSelectionState = null;
 
   browser.storage.onChanged.addListener(async (changes, area) => {
     if (area === 'local' && changes.settings) {
@@ -963,6 +964,21 @@
   // Configuration Application
   // ========================================
   const applySelectionModeFromConfig = () => {
+    const nextState = {
+      enabled: Boolean(config.configEnabled),
+      granularity: config.configGranularity ?? null
+    };
+
+    if (
+      lastAppliedSelectionState &&
+      lastAppliedSelectionState.enabled === nextState.enabled &&
+      lastAppliedSelectionState.granularity === nextState.granularity
+    ) {
+      return;
+    }
+
+    lastAppliedSelectionState = nextState;
+
     if (config.configEnabled) {
       if (config.configGranularity === 'sentence') {
         enableSentenceMode();
