@@ -82,7 +82,7 @@ export const applyPlatformClass = async () => {
 export const settings = (() => {
   const DEFAULT_SETTINGS = {
     configEnabled: false,
-    configGranularity: null,  // 'word' | 'sentence' | 'paragraph'
+    configGranularity: 'paragraph',  // 'word' | 'sentence' | 'paragraph'
     configExtendSelection: false,
   };
 

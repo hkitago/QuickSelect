@@ -1,7 +1,7 @@
 (() => {
   const DEFAULT_SETTINGS = {
     configEnabled: false,
-    configGranularity: null,
+    configGranularity: 'paragraph',
     configExtendSelection: false,
   };
 
