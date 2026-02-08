@@ -92,7 +92,7 @@ browser.storage.onChanged.addListener(async (changes, area) => {
     const [activeTab] = await browser.tabs.query({ active: true, currentWindow: true });
     if (!activeTab?.id) return;
 
-    await updateToolbarIcon(activeTab?.id ?? null, settings.get());
+    await updateToolbarIcon(activeTab?.id ?? null, changes.settings.newValue);
   }
 });
 
