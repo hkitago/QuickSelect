@@ -66,6 +66,24 @@
     'BUTTON'
   ]);
   const SKIP_SELECTOR = Array.from(SKIP_TAGS).map(tag => tag.toLowerCase()).join(', ');
+  const IS_LOW_POWER_DEVICE = (() => {
+    const ua = navigator.userAgent || '';
+    const platform = navigator.platform || '';
+    const maxTouchPoints = navigator.maxTouchPoints || 0;
+    const isIPadOS = platform === 'MacIntel' && maxTouchPoints > 1;
+    const isIOS = /iPhone|iPod|iPad/.test(ua);
+    return isIOS || isIPadOS;
+  })();
+  const OBSERVER_BATCH_DELAY_MS = IS_LOW_POWER_DEVICE ? 280 : 80;
+  const OBSERVER_MAX_NODES_PER_BATCH = IS_LOW_POWER_DEVICE ? 30 : 120;
+  const OBSERVER_MAX_CONTAINERS_PER_BATCH = IS_LOW_POWER_DEVICE ? 40 : 200;
+  const OBSERVER_MAX_BLOCK_SCAN = IS_LOW_POWER_DEVICE ? 40 : 200;
+  const OBSERVER_MAX_BLOCK_DESCENDANTS = IS_LOW_POWER_DEVICE ? 12 : 80;
+  const OBSERVER_OPTIONS = {
+    childList: true,
+    subtree: true,
+    characterData: !IS_LOW_POWER_DEVICE
+  };
 
   let sentenceSegmenter = null;
   let wordSegmenter = null;
@@ -1083,7 +1101,7 @@
     config = { ...DEFAULT_SETTINGS, ...newConfig };
 
     toggleQuickSelectCSS(config);
-//    toggleDOMObserver(config);
+    toggleDOMObserver(config);
     requestUpdateIconToBackground();
 
     applySelectionModeFromConfig();
@@ -1114,24 +1132,163 @@
   // Observe DOM changes for SPA and lazy-loaded content
   // ========================================
   let selectionObserver = null;
+  let mutationQueue = [];
+  let mutationQueueSet = new Set();
+  let mutationTimer = null;
+  let isProcessingMutations = false;
 
-  const toggleDOMObserver = (config) => {
-    if (!config?.configEnabled) {
-      selectionObserver?.disconnect();
-      selectionObserver = null;
+  const shouldObserveMutations = () => Boolean(
+    config?.configEnabled
+    && (config?.configGranularity === 'sentence' || config?.configGranularity === 'word')
+  );
+
+  const clearMutationQueue = () => {
+    mutationQueue = [];
+    mutationQueueSet = new Set();
+    if (mutationTimer) {
+      clearTimeout(mutationTimer);
+      mutationTimer = null;
+    }
+  };
+
+  const addSentenceContainer = (container, set) => {
+    if (!container) return;
+    if (!isNodeInDocument(container)) return;
+    if (isInsideSkippableElement(container)) return;
+    if (container.closest?.(SENTENCE_SELECTOR) || container.closest?.(WORD_SELECTOR)) return;
+    set.add(container);
+  };
+
+  const collectSentenceContainersFromNode = (node, set) => {
+    if (!node) return;
+
+    if (node.nodeType === Node.TEXT_NODE) {
+      if (!node.nodeValue || !node.nodeValue.trim()) return;
+      const parent = node.parentElement;
+      if (!parent) return;
+      const block = getParagraphElementFromTarget(parent) || parent.closest?.(BLOCK_SELECTOR) || parent;
+      addSentenceContainer(block, set);
       return;
     }
 
-    if (selectionObserver) return;
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+    const element = node;
 
-    selectionObserver = new MutationObserver(() => {
-      // Re-verify styles if necessary for dynamic elements
-    });
+    if (SKIP_TAGS.has(element.tagName)) return;
+    if (element.closest?.(SENTENCE_SELECTOR) || element.closest?.(WORD_SELECTOR)) return;
 
-    selectionObserver.observe(document.documentElement, {
-      childList: true,
-      subtree: true
-    });
+    let block = null;
+    if (element.matches?.(BLOCK_SELECTOR)) {
+      block = element;
+    } else {
+      block = getParagraphElementFromTarget(element) || element.closest?.(BLOCK_SELECTOR);
+    }
+
+    if (!block) {
+      if (document.body && !document.body.querySelector(BLOCK_SELECTOR)) {
+        block = document.body;
+      } else {
+        block = element;
+      }
+    }
+
+    addSentenceContainer(block, set);
+
+    if (element.childElementCount && element.childElementCount <= OBSERVER_MAX_BLOCK_SCAN) {
+      const blocks = element.querySelectorAll?.(BLOCK_SELECTOR);
+      if (blocks && blocks.length) {
+        const limit = Math.min(blocks.length, OBSERVER_MAX_BLOCK_DESCENDANTS);
+        for (let i = 0; i < limit; i += 1) {
+          addSentenceContainer(blocks[i], set);
+        }
+      }
+    }
+  };
+
+  const enqueueMutationNode = (node) => {
+    if (!node) return;
+    if (mutationQueueSet.has(node)) return;
+    mutationQueueSet.add(node);
+    mutationQueue.push(node);
+
+    if (!mutationTimer) {
+      mutationTimer = setTimeout(processMutationQueue, OBSERVER_BATCH_DELAY_MS);
+    }
+  };
+
+  const processMutationQueue = () => {
+    mutationTimer = null;
+
+    if (!shouldObserveMutations()) {
+      clearMutationQueue();
+      return;
+    }
+
+    if (document.visibilityState && document.visibilityState !== 'visible') {
+      mutationTimer = setTimeout(processMutationQueue, OBSERVER_BATCH_DELAY_MS);
+      return;
+    }
+
+    if (isProcessingMutations) {
+      mutationTimer = setTimeout(processMutationQueue, OBSERVER_BATCH_DELAY_MS);
+      return;
+    }
+
+    isProcessingMutations = true;
+    selectionObserver?.disconnect();
+
+    try {
+      const batch = mutationQueue.splice(0, OBSERVER_MAX_NODES_PER_BATCH);
+      batch.forEach(node => mutationQueueSet.delete(node));
+
+      const containers = new Set();
+      batch.forEach(node => collectSentenceContainersFromNode(node, containers));
+
+      let processedCount = 0;
+      for (const container of containers) {
+        if (processedCount >= OBSERVER_MAX_CONTAINERS_PER_BATCH) break;
+        if (!isNodeInDocument(container)) continue;
+
+        const runs = collectTextNodeRunsOutsideBlocks(container);
+        runs.forEach(run => {
+          wrapSentenceRun(run);
+        });
+        processedCount += 1;
+      }
+    } finally {
+      isProcessingMutations = false;
+      if (selectionObserver && shouldObserveMutations()) {
+        selectionObserver.observe(document.documentElement, OBSERVER_OPTIONS);
+      }
+      if (mutationQueue.length > 0 && !mutationTimer) {
+        mutationTimer = setTimeout(processMutationQueue, OBSERVER_BATCH_DELAY_MS);
+      }
+    }
+  };
+
+  const toggleDOMObserver = (config) => {
+    if (!shouldObserveMutations()) {
+      selectionObserver?.disconnect();
+      selectionObserver = null;
+      clearMutationQueue();
+      return;
+    }
+
+    if (!selectionObserver) {
+      selectionObserver = new MutationObserver((mutations) => {
+        if (!shouldObserveMutations()) return;
+        for (const mutation of mutations) {
+          if (mutation.type === 'childList') {
+            mutation.addedNodes.forEach(node => enqueueMutationNode(node));
+          } else if (mutation.type === 'characterData') {
+            enqueueMutationNode(mutation.target);
+          }
+        }
+      });
+    }
+
+    selectionObserver.disconnect();
+    selectionObserver.observe(document.documentElement, OBSERVER_OPTIONS);
   };
 
   document.addEventListener('visibilitychange', async () => {
