@@ -8,13 +8,6 @@
   let config = { ...DEFAULT_SETTINGS };
   let lastAppliedSelectionState = null;
 
-  browser.storage.onChanged.addListener(async (changes, area) => {
-    if (area === 'local' && changes.settings) {
-      const nextConfig = { ...DEFAULT_SETTINGS, ...changes.settings.newValue };
-      applyConfig(nextConfig);
-    }
-  });
-
   const requestConfigFromBackground = async () => {
     try {
       const response = await browser.runtime.sendMessage({
