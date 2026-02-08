@@ -46,6 +46,7 @@
   const CUSTOM_WORD_TAG = 'span';
   const CUSTOM_WORD_ATTR = 'data-qs';
   const CUSTOM_WORD_ATTR_VALUE = 'word';
+  const SENTENCE_WORDIZED_ATTR = 'data-qs-wordized';
   const SENTENCE_SELECTOR = `${CUSTOM_SENTENCE_TAG}[${CUSTOM_SENTENCE_ATTR}="${CUSTOM_SENTENCE_ATTR_VALUE}"]`;
   const WORD_SELECTOR = `${CUSTOM_WORD_TAG}[${CUSTOM_WORD_ATTR}="${CUSTOM_WORD_ATTR_VALUE}"]`;
   const BLOCK_SELECTOR = 'p, div, li, td, th, h1, h2, h3, h4, h5, h6, blockquote, dd, dt';
@@ -92,6 +93,9 @@
   };
 
   const isActiveSegmentTarget = (target) => {
+    if (config?.configGranularity === 'word') {
+      return Boolean(target?.closest?.(WORD_SELECTOR) || target?.closest?.(SENTENCE_SELECTOR));
+    }
     const selector = getActiveSegmentSelector();
     if (selector) return Boolean(target?.closest?.(selector));
     if (config?.configGranularity === 'paragraph') {
@@ -580,9 +584,43 @@
     });
   };
 
+  const clearSentenceWordizedFlags = () => {
+    const wordized = document.querySelectorAll(`${SENTENCE_SELECTOR}[${SENTENCE_WORDIZED_ATTR}]`);
+    wordized.forEach(tag => tag.removeAttribute(SENTENCE_WORDIZED_ATTR));
+  };
+
+  const ensureSentenceTags = () => {
+    const root = document.body || document.documentElement;
+    if (!root) return;
+
+    if (document.querySelector(SENTENCE_SELECTOR)) return;
+
+    sentenceIdCounter = 0;
+    wrapSentencesInRoot(root);
+  };
+
+  const disableSentenceClickHandler = () => {
+    document.removeEventListener('click', handleSentenceClick, true);
+  };
+
+  const getSentencePartsFromTarget = (target) => {
+    const sentenceTarget = target?.closest?.(SENTENCE_SELECTOR);
+    if (!sentenceTarget) return null;
+
+    const sentenceId = sentenceTarget.getAttribute('data-sentence-id');
+    if (!sentenceId) return null;
+
+    const scope = sentenceTarget.closest(BLOCK_SELECTOR) || sentenceTarget.parentElement || document.body || document.documentElement;
+    const sentenceParts = scope.querySelectorAll(`${CUSTOM_SENTENCE_TAG}[data-sentence-id="${sentenceId}"]`);
+    if (!sentenceParts.length) return null;
+
+    return { sentenceParts, sentenceTarget, scope };
+  };
+
   const handleSentenceClick = (event) => {
-    const target = event.target?.closest?.(SENTENCE_SELECTOR);
-    if (!target) return;
+    const sentenceInfo = getSentencePartsFromTarget(event.target);
+    if (!sentenceInfo) return;
+    const { sentenceParts } = sentenceInfo;
 
     if (event?.type === 'pointerup') {
       lastPointerUpTs = Date.now();
@@ -591,11 +629,6 @@
     }
 
     pendingOutsideTap = false;
-    const sentenceId = target.getAttribute('data-sentence-id');
-    const scope = target.closest(BLOCK_SELECTOR) || target.parentElement || document.body || document.documentElement;
-    const sentenceParts = scope.querySelectorAll(`${CUSTOM_SENTENCE_TAG}[data-sentence-id="${sentenceId}"]`);
-    if (!sentenceParts.length) return;
-
     const firstPart = sentenceParts[0];
     const lastPart = sentenceParts[sentenceParts.length - 1];
 
@@ -631,19 +664,14 @@
   const enableSentenceMode = () => {
     disableWordMode();
     disableParagraphMode();
-    unwrapSentenceTags();
     selectionAnchor = null;
-    sentenceIdCounter = 0;
-    const root = document.body || document.documentElement;
-    if (root) {
-      wrapSentencesInRoot(root);
-    }
+    ensureSentenceTags();
 
     document.addEventListener('click', handleSentenceClick, true);
   };
 
   const disableSentenceMode = () => {
-    document.removeEventListener('click', handleSentenceClick, true);
+    disableSentenceClickHandler();
     unwrapSentenceTags();
     sentenceIdCounter = 0;
     selectionAnchor = null;
@@ -791,8 +819,13 @@
 
   const unwrapWordTags = () => {
     const wordTags = document.querySelectorAll(WORD_SELECTOR);
+    const parents = new Set();
     wordTags.forEach(tag => {
+      if (tag.parentNode) parents.add(tag.parentNode);
       tag.replaceWith(document.createTextNode(tag.textContent || ''));
+    });
+    parents.forEach(parent => {
+      if (parent?.normalize) parent.normalize();
     });
   };
 
@@ -826,13 +859,63 @@
   };
 
   const handleWordClick = (event) => {
-    const target = event.target?.closest?.(WORD_SELECTOR);
-    if (!target) return;
+    let target = event.target?.closest?.(WORD_SELECTOR);
 
     if (event?.type === 'pointerup') {
       lastPointerUpTs = Date.now();
     } else if (event?.type === 'click') {
       if (Date.now() - lastPointerUpTs < 400) return;
+    }
+
+    if (!target) {
+      const sentenceInfo = getSentencePartsFromTarget(event.target);
+      if (!sentenceInfo) return;
+      const { sentenceParts } = sentenceInfo;
+
+      const needsWordize = Array.from(sentenceParts).some(part => !part.hasAttribute(SENTENCE_WORDIZED_ATTR));
+      if (needsWordize) {
+        const nodes = [];
+        sentenceParts.forEach(part => {
+          const walker = document.createTreeWalker(
+            part,
+            NodeFilter.SHOW_TEXT,
+            {
+              acceptNode: (node) => {
+                if (!node?.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+                if (node.parentElement?.closest?.(WORD_SELECTOR)) return NodeFilter.FILTER_REJECT;
+                return NodeFilter.FILTER_ACCEPT;
+              }
+            }
+          );
+
+          while (walker.nextNode()) {
+            nodes.push(walker.currentNode);
+          }
+        });
+
+        if (nodes.length > 0) {
+          wrapWordRun(nodes);
+        }
+
+        sentenceParts.forEach(part => part.setAttribute(SENTENCE_WORDIZED_ATTR, '1'));
+      }
+
+      if (event?.clientX != null && event?.clientY != null) {
+        const element = document.elementFromPoint(event.clientX, event.clientY);
+        target = element?.closest?.(WORD_SELECTOR) ?? null;
+      }
+
+      if (!target) {
+        for (const part of sentenceParts) {
+          const fallback = part.querySelector(WORD_SELECTOR);
+          if (fallback) {
+            target = fallback;
+            break;
+          }
+        }
+      }
+
+      if (!target) return;
     }
 
     pendingOutsideTap = false;
@@ -873,15 +956,12 @@
   };
 
   const enableWordMode = () => {
-    disableSentenceMode();
+    disableSentenceClickHandler();
     disableParagraphMode();
     unwrapWordTags();
     selectionAnchor = null;
     wordIdCounter = 0;
-    const root = document.body || document.documentElement;
-    if (root) {
-      wrapWordsInRoot(root);
-    }
+    ensureSentenceTags();
 
     document.addEventListener('click', handleWordClick, true);
   };
@@ -889,6 +969,7 @@
   const disableWordMode = () => {
     document.removeEventListener('click', handleWordClick, true);
     unwrapWordTags();
+    clearSentenceWordizedFlags();
     wordIdCounter = 0;
     selectionAnchor = null;
     pendingOutsideTap = false;
