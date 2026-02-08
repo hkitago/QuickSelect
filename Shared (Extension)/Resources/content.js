@@ -15,14 +15,6 @@
     }
   });
 
-  const requestUpdateIconToBackground = async () => {
-    try {
-      await browser.runtime.sendMessage({ type: 'UPDATE_CURRENT_ICON' });
-    } catch (error) {
-      console.error('[QuickSelectExtension] Failed to update icon on background:', error);
-    }
-  };
-
   const requestConfigFromBackground = async () => {
     try {
       const response = await browser.runtime.sendMessage({
@@ -1102,7 +1094,6 @@
 
     toggleQuickSelectCSS(config);
     toggleDOMObserver(config);
-    requestUpdateIconToBackground();
 
     applySelectionModeFromConfig();
   };
@@ -1291,6 +1282,9 @@
     selectionObserver.observe(document.documentElement, OBSERVER_OPTIONS);
   };
 
+  // ========================================
+  // Event Listeners
+  // ========================================
   document.addEventListener('visibilitychange', async () => {
     if (document.visibilityState !== 'visible') return;
 
@@ -1310,14 +1304,9 @@
   document.addEventListener('click', handleOutsideSelectionClear, true);
   document.addEventListener('selectionchange', handleSelectionChange, true);
 
-  // ========================================
-  // Config update: Receive from background
-  // ========================================
   browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'CONFIG_UPDATED') {
       applyConfig(message.config);
-
-      sendResponse({ success: true });
     }
     
     return;

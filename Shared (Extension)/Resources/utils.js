@@ -1,3 +1,15 @@
+// ========================================
+// Messaging: Send to content.js
+// ========================================
+export const sendMessageSafe = async (tabId, message) => {
+  try {
+    await browser.tabs.sendMessage(tabId, message);
+  } catch (error) {
+    // Ignore errors if the content script is not yet loaded or the tab is not accessible.
+    console.error(`[QuickSelectExtension] Cannot send to tab ${tabId}:`, error);
+  }
+};
+
 // ============================================
 // Platform Detection
 // ============================================
@@ -21,7 +33,6 @@ const detectAndSavePlatform = async () => {
 
   try {
     await browser.storage.local.set({ [PLATFORM_KEY]: platformInfo });
-    console.log('[QuickSelectExtension] Platform detected:', platformInfo);
   } catch (error) {
     console.error('[QuickSelectExtension] Failed to save platform info:', error);
   }
@@ -35,8 +46,6 @@ const detectAndSavePlatform = async () => {
     
     if (!existing) {
       await detectAndSavePlatform();
-    } else {
-      console.warn('[QuickSelectExtension] Platform info already initialized:', existing);
     }
   } catch (error) {
     console.error('[QuickSelectExtension] Failed to initialize platform info:', error);

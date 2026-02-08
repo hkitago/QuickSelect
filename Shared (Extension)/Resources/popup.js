@@ -1,5 +1,5 @@
 import { getCurrentLangLabelString, applyRTLSupport } from './localization.js';
-import { applyPlatformClass, settings } from './utils.js';
+import { sendMessageSafe, applyPlatformClass, settings } from './utils.js';
 
 const buildPopup = (settings) => {
   applyPlatformClass();
@@ -55,18 +55,6 @@ const buildPopup = (settings) => {
   const renderRadioBtns = () => {
     const currentGranularity = settings.get('configGranularity');
 
-    const sendConfigToActiveTabs = async () => {
-      const config = settings.get();
-      try {
-        const tabs = await browser.tabs.query({ active: true });
-        await Promise.all(tabs.map(tab =>
-          browser.tabs.sendMessage(tab.id, { type: 'CONFIG_UPDATED', config }).catch(() => {})
-        ));
-      } catch (error) {
-        console.warn('[QuickSelectExtension] Failed to send config to active tabs:', error);
-      }
-    };
-
     configRadioBtns.forEach(({ key, label }) => {
       const radio = document.getElementById(key);
       const labelElement = document.querySelector(`label[for="${key}"]`);
@@ -86,25 +74,15 @@ const buildPopup = (settings) => {
       radio.addEventListener('change', async () => {
         if (radio.checked) {
           await settings.set('configGranularity', radio.value);
-          await sendConfigToActiveTabs();
+
+          const [activeTab] = await browser.tabs.query({ active: true, currentWindow: true });
+          await sendMessageSafe(activeTab.id, { type: 'CONFIG_UPDATED', config: settings.get() });
         }
       });
     });
   };
 
   const renderCheckboxes = () => {
-    const sendConfigToActiveTabs = async () => {
-      const config = settings.get();
-      try {
-        const tabs = await browser.tabs.query({ active: true });
-        await Promise.all(tabs.map(tab =>
-          browser.tabs.sendMessage(tab.id, { type: 'CONFIG_UPDATED', config }).catch(() => {})
-        ));
-      } catch (error) {
-        console.warn('[QuickSelectExtension] Failed to send config to active tabs:', error);
-      }
-    };
-
     configCheckboxes.forEach(({ key, label }) => {
       const checkbox = document.getElementById(key);
       const labelElement = document.querySelector(`label[for="${key}"]`);
@@ -128,7 +106,9 @@ const buildPopup = (settings) => {
       checkbox.addEventListener('change', async () => {
         checkbox.classList.remove('toggle-disabled');
         await settings.set(key, checkbox.checked);
-        await sendConfigToActiveTabs();
+
+        const [activeTab] = await browser.tabs.query({ active: true, currentWindow: true });
+        await sendMessageSafe(activeTab.id, { type: 'CONFIG_UPDATED', config: settings.get() });
 
         if (key === 'configEnabled') {
           toggleConfigEnabled();

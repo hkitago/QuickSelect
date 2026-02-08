@@ -1,4 +1,4 @@
-import { getPlatformInfo, settings } from './utils.js';
+import { sendMessageSafe, getPlatformInfo, settings } from './utils.js';
 
 // ========================================
 // Icon Handlings
@@ -74,18 +74,6 @@ browser.tabs.onRemoved.addListener((tabId) => {
 });
 
 // ========================================
-// Messaging: Send to content.js
-// ========================================
-const sendMessageSafe = async (tabId, message) => {
-  try {
-    await browser.tabs.sendMessage(tabId, message);
-  } catch (error) {
-    // Ignore errors if the content script is not yet loaded or the tab is not accessible.
-    console.error(`[QuickSelectExtension] Cannot send to tab ${tabId}:`, error);
-  }
-};
-
-// ========================================
 // Event Listeners
 // ========================================
 browser.windows.onFocusChanged.addListener(async (windowId) => {
@@ -94,18 +82,13 @@ browser.windows.onFocusChanged.addListener(async (windowId) => {
   
   const [activeTab] = await browser.tabs.query({ active: true, currentWindow: true });
   sendMessageSafe(activeTab.id, { type: 'CONFIG_UPDATED', config: settings.get() });
-  
   updateToolbarIcon(activeTab.id, settings.get());
 });
 
 browser.storage.onChanged.addListener(async (changes, area) => {
   if (area === 'local' && changes.settings) {
-    const tabs = await browser.tabs.query({ active: true });
-
-    for (const tab of tabs) {
-      sendMessageSafe(tab.id, { type: 'CONFIG_UPDATED', config: settings.get() });
-      updateToolbarIcon(tab.id, settings.get());
-    }
+    const [activeTab] = await browser.tabs.query({ active: true, currentWindow: true });
+    await updateToolbarIcon(activeTab?.id ?? null, settings.get());
   }
 });
 
@@ -114,12 +97,6 @@ browser.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   if (message.type === 'GET_CURRENT_CONFIG') {
     sendResponse({ config: settings.get() });
     return true;
-  }
-  
-  if (message.type === 'UPDATE_CURRENT_ICON') {
-    const [activeTab] = await browser.tabs.query({ active: true, currentWindow: true });
-    await updateToolbarIcon(activeTab?.id ?? null, settings.get());
-    return;
   }
 });
 
