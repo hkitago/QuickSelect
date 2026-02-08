@@ -6,7 +6,6 @@
   };
 
   let config = { ...DEFAULT_SETTINGS };
-  let lastAppliedSelectionState = null;
 
   const requestConfigFromBackground = async () => {
     try {
@@ -1047,6 +1046,8 @@
   // ========================================
   // Configuration Application
   // ========================================
+  let lastAppliedSelectionState = null;
+
   const applySelectionModeFromConfig = () => {
     const nextState = {
       enabled: Boolean(config.configEnabled),
@@ -1296,6 +1297,24 @@
   document.addEventListener('touchstart', handleOutsideSelectionClear, true);
   document.addEventListener('click', handleOutsideSelectionClear, true);
   document.addEventListener('selectionchange', handleSelectionChange, true);
+
+  browser.storage.onChanged.addListener(async (changes, areaName) => {
+    try {
+      if (areaName === 'local' && changes.settings) {
+        const nextConfig = { ...DEFAULT_SETTINGS, ...changes.settings.newValue };
+        applyConfig(nextConfig);
+      }
+    } catch (error) {
+      console.warn('[QuickSelectExtension] Failed to apply settings from storage change, fallback to background:', error);
+      try {
+        const storedConfig = await browser.storage.local.get('settings');
+        const mergedConfig = { ...DEFAULT_SETTINGS, ...storedConfig.settings };
+        applyConfig(mergedConfig);
+      } catch (error) {
+        console.error('[QuickSelectExtension] Failed to load fallback config after storage change:', error);
+      }
+    }
+  });
 
   browser.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
     if (message.type === 'CONFIG_UPDATED') {
