@@ -76,7 +76,9 @@ const buildPopup = (settings) => {
           await settings.set('configGranularity', radio.value);
 
           const [activeTab] = await browser.tabs.query({ active: true, currentWindow: true });
-          await sendMessageSafe(activeTab.id, { type: 'CONFIG_UPDATED', config: settings.get() });
+          if (activeTab?.id) {
+            await sendMessageSafe(activeTab.id, { type: 'CONFIG_UPDATED', config: settings.get() });
+          }
         }
       });
     });
@@ -108,7 +110,9 @@ const buildPopup = (settings) => {
         await settings.set(key, checkbox.checked);
 
         const [activeTab] = await browser.tabs.query({ active: true, currentWindow: true });
-        await sendMessageSafe(activeTab.id, { type: 'CONFIG_UPDATED', config: settings.get() });
+        if (activeTab?.id) {
+          await sendMessageSafe(activeTab.id, { type: 'CONFIG_UPDATED', config: settings.get() });
+        }
 
         if (key === 'configEnabled') {
           toggleConfigEnabled();

@@ -81,6 +81,8 @@ browser.windows.onFocusChanged.addListener(async (windowId) => {
   if (!settings.get('configEnabled')) return;
   
   const [activeTab] = await browser.tabs.query({ active: true, currentWindow: true });
+  if (!activeTab?.id) return;
+
   sendMessageSafe(activeTab.id, { type: 'CONFIG_UPDATED', config: settings.get() });
   updateToolbarIcon(activeTab.id, settings.get());
 });
@@ -88,6 +90,8 @@ browser.windows.onFocusChanged.addListener(async (windowId) => {
 browser.storage.onChanged.addListener(async (changes, area) => {
   if (area === 'local' && changes.settings) {
     const [activeTab] = await browser.tabs.query({ active: true, currentWindow: true });
+    if (!activeTab?.id) return;
+
     await updateToolbarIcon(activeTab?.id ?? null, settings.get());
   }
 });
