@@ -50,13 +50,20 @@
     'BUTTON'
   ]);
   const SKIP_SELECTOR = Array.from(SKIP_TAGS).map(tag => tag.toLowerCase()).join(', ');
-  const IS_LOW_POWER_DEVICE = (() => {
-    const ua = navigator.userAgent || '';
-    const platform = navigator.platform || '';
-    const maxTouchPoints = navigator.maxTouchPoints || 0;
-    const isIPadOS = platform === 'MacIntel' && maxTouchPoints > 1;
-    const isIOS = /iPhone|iPod|iPad/.test(ua);
-    return isIOS || isIPadOS;
+  const IS_LOW_POWER_DEVICE = (async () => {
+    try {
+      const result = await browser.storage.local.get('platformInfo');
+      const platformInfo = result.platformInfo;
+      if (platformInfo) return platformInfo.isIOS || platformInfo.isIPadOS;
+    } catch (error) {
+      console.warn('Failed to load platformInfo, fallback to browser settings:', error);
+      const ua = navigator.userAgent || '';
+      const platform = navigator.platform || '';
+      const maxTouchPoints = navigator.maxTouchPoints || 0;
+      const isIPadOS = platform === 'MacIntel' && maxTouchPoints > 1;
+      const isIOS = /iPhone|iPod|iPad/.test(ua);
+      return isIOS || isIPadOS;
+    }
   })();
   const OBSERVER_BATCH_DELAY_MS = IS_LOW_POWER_DEVICE ? 280 : 80;
   const OBSERVER_MAX_NODES_PER_BATCH = IS_LOW_POWER_DEVICE ? 30 : 120;
@@ -1287,7 +1294,7 @@
       const freshConfig = { ...DEFAULT_SETTINGS, ...stored.settings };
       applyConfig(freshConfig);
     } catch (error) {
-      console.warn('[QuickSelectExtension] Storage refresh failed, fallback to background:', error);
+      console.warn('[QuickSelectExtension] Failed to refresh storage, fallback to background:', error);
       requestConfigFromBackground();
     }
   });
