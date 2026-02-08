@@ -1286,7 +1286,7 @@
       const freshConfig = { ...DEFAULT_SETTINGS, ...stored.settings };
       applyConfig(freshConfig);
     } catch (error) {
-      console.warn('[QuickSelectExtension] Storage refresh failed, fallback to background');
+      console.warn('[QuickSelectExtension] Storage refresh failed, fallback to background:', error);
       requestConfigFromBackground();
     }
   });
@@ -1297,9 +1297,20 @@
   document.addEventListener('click', handleOutsideSelectionClear, true);
   document.addEventListener('selectionchange', handleSelectionChange, true);
 
-  browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  browser.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
     if (message.type === 'CONFIG_UPDATED') {
-      applyConfig(message.config);
+      try {
+        applyConfig(message.config);
+      } catch (error) {
+        console.warn('[QuickSelectExtension] Failed to apply config, fallback to background:', error);
+        requestConfigFromBackground();
+        try {
+          const stored = await browser.storage.local.get('settings');
+          applyConfig(stored.settings);
+        } catch (error) {
+          console.error('[QuickSelectExtension] Failed to load fallback config:', error);
+        }
+      }
     }
     
     return;
