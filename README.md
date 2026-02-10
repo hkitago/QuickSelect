@@ -28,9 +28,17 @@ To uninstall the extension, similarly to the installation process, toggle the ex
 > The DOM observer is disabled by design (see toggleDOMObserver). Word-level segmentation introduces a large number of wrapper elements, which can significantly increase DOM size and impact performance.  
 > As a result, some highly dynamic pages (such as generative AI services) may not work as expected.
 
+> [!NOTE]
+> On some dynamic or SPA-based sites, the following workarounds may help in limited cases:
+>
+> - Temporarily turning off the **Enable** toggle in the popover and turning it back on.
+> - Reloading the page when the URL is stable and uniquely identifies the content.
+>
+> These approaches are not guaranteed to work on all sites, but have been observed to improve behavior in certain scenarios.
+
 ## Latest Version
 
-### 1.0 - 2026-02-XX
+### 1.0 - 2026-02-11
 
 - Initial release with basic features
 
