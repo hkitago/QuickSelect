@@ -24,9 +24,9 @@ To uninstall the extension, similarly to the installation process, toggle the ex
 
 ### Icon States
 
-- **Paragraph:** <code><img src="https://raw.githubusercontent.com/hkitago/FindClose/refs/heads/main/Shared%20(Extension)/Resources/images/toolbar-icon-paragraph.svg" height="24" valign="middle"/></code>
-- **Sentence:** <code><img src="https://raw.githubusercontent.com/hkitago/FindClose/refs/heads/main/Shared%20(Extension)/Resources/images/toolbar-icon-sentence.svg" height="24" valign="middle"/></code>
-- **Word:** <code><img src="https://raw.githubusercontent.com/hkitago/FindClose/refs/heads/main/Shared%20(Extension)/Resources/images/toolbar-icon-word.svg" height="24" valign="middle"/></code>
+- **Paragraph:** <code><img src="https://raw.githubusercontent.com/hkitago/QuickSelect/refs/heads/main/Shared%20(Extension)/Resources/images/toolbar-icon-paragraph.svg" height="24" valign="middle"/></code>
+- **Sentence:** <code><img src="https://raw.githubusercontent.com/hkitago/QuickSelect/refs/heads/main/Shared%20(Extension)/Resources/images/toolbar-icon-sentence.svg" height="24" valign="middle"/></code>
+- **Word:** <code><img src="https://raw.githubusercontent.com/hkitago/QuickSelect/refs/heads/main/Shared%20(Extension)/Resources/images/toolbar-icon-word.svg" height="24" valign="middle"/></code>
 
 5. (Optional) Turn on "Extend Selection" if you want to select multiple areas without clearing your previous selection.
 6. Tap or click any text on the page to select it at your chosen level.
